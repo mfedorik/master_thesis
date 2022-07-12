@@ -135,6 +135,6 @@ final_result['full_f1_score'] = f1_score(y_fulltest,full_prediction)
 final_result['full_roc_auc'] = roc_auc_score(y_fulltest,full_prediction)
 final_result['full_recall'] = recall_score(y_fulltest,full_prediction)
 
-file1 = open(path + '/AE_EARLY_RESULTS.pkl', 'wb')
+file1 = open(path + '/AE_EARLY_RESULTS_{}.pkl'.format(i), 'wb')
 pickle.dump(final_result, file1)
 file1.close()
