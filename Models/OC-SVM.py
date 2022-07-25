@@ -31,51 +31,126 @@ def import_dataset(path):
 path = '' # custom path
 X_train, y_train, X_fulltest, y_fulltest, X_valid, y_valid = import_dataset(path + '/DATA/')
 
+#### Computing the contamination level
+c = round(sum(y_train == 1)/len(y_train),3)
 
-# EARLY PREDICTION + FULL MODEL ESTIMATION
+##### Contamination in the training dataset was on level ~2.4% of purchase sessions from all sessions - c=0.024
+model = OCSVM(kernel = 'rbf', coef0 = 0.5, contamination = c)         
+model.fit(X_train)
 
-def earlyprediction(X_train, X_valid, y_valid, X_fulltest, y_fulltest, leng):
-  result = {}
-  for i in leng:
-    X_train = X_train[list(X_train.columns)[:5*i]]
-    X_valid = X_valid[list(X_valid.columns)[:5*i]]
-    X_fulltest = X_fulltest[list(X_fulltest.columns)[:5*i]]
-    print("Prediction with data in shape:", X_train.shape)
-    model = OCSVM(kernel = 'rbf', coef0 = 0.5, contamination = 0.026) 
-    model.fit(X_train)
-    final_result = {}
-    final_result['parameters'] = {'length = {}, kernel = '"rbf"', coef0 = 0.5, contamination = 0.026'.format(i)}
-    final_result['threshold'] = model.threshold_
-    final_result['labels'] = model.labels_
-    final_result['descision_scores'] = model.decision_scores_
+##### Model export
+file = open(path + "/OCSVM/OCSVM_FINAL_MODEL.pkl", "wb")
+pickle.dump(model, file)
+file.close()
+
+##### Prediction on validation data, prediction on test data, evaluation
+final_result = {}
+final_result['parameters'] = {str(model)}
+final_result['threshold'] = model.threshold_
+final_result['labels'] = model.labels_
+final_result['descision_scores'] = model.decision_scores_
     
-    prediction = model.predict(X_valid)
-    final_result['prediction'] = prediction
+prediction = model.predict(X_valid)
+final_result['prediction'] = prediction
 
-    final_result['confusion matrix'] = confusion_matrix(y_valid,prediction)        
-    final_result['precision'] = precision_score(y_valid,prediction)
-    final_result['accuracy'] = accuracy_score(y_valid,prediction)
-    final_result['f1_score'] = f1_score(y_valid,prediction)
-    print('f1 =', final_result['f1_score'])
-    final_result['roc_auc'] = roc_auc_score(y_valid,prediction)
-    print('roc_auc =', final_result['roc_auc'])
-    final_result['recall'] = recall_score(y_valid,prediction)
+final_result['confusion matrix'] = confusion_matrix(y_valid,prediction)        
+final_result['precision'] = precision_score(y_valid,prediction)
+final_result['accuracy'] = accuracy_score(y_valid,prediction)
+final_result['f1_score'] = f1_score(y_valid,prediction)
+final_result['roc_auc'] = roc_auc_score(y_valid,prediction)
+final_result['recall'] = recall_score(y_valid,prediction)
 
-    full_prediction = model.predict(X_fulltest)
-    final_result['full_prediction'] = full_prediction
+test_prediction = model.predict(X_test)
+final_result['test_prediction'] = test_prediction
 
-    final_result['full_confusion matrix'] = confusion_matrix(y_fulltest,full_prediction)        
-    final_result['full_precision'] = precision_score(y_fulltest,full_prediction)
-    final_result['full_accuracy'] = accuracy_score(y_fulltest,full_prediction)
-    final_result['full_f1_score'] = f1_score(y_fulltest,full_prediction)
-    print('FULL-f1 =', final_result['full_f1_score'])
-    final_result['full_roc_auc'] = roc_auc_score(y_fulltest,full_prediction)
-    print('FULL-roc_auc =', final_result['full_roc_auc'])
-    final_result['full_recall'] = recall_score(y_fulltest,full_prediction)
+final_result['test_confusion matrix'] = confusion_matrix(y_test,test_prediction)        
+final_result['test_precision'] = precision_score(y_test,test_prediction)
+final_result['test_accuracy'] = accuracy_score(y_test,test_prediction)
+final_result['test_f1_score'] = f1_score(y_test,test_prediction)
+final_result['test_roc_auc'] = roc_auc_score(y_test,test_prediction)
+final_result['test_recall'] = recall_score(y_test,test_prediction)
+result = {}
+result['model'] = final_result
+file = open(path + "/OCSVM/OCSVM_FINAL_RESULT.pkl", "wb")
+pickle.dump(final_result, file)
+file.close()
 
-    result['length_{0}'.format(i)] = final_result
-    del model, prediction, full_prediction, final_result
-  df = pd.DataFrame.from_dict(result)
-  df.to_csv(path + "OC-SVM_EARLY_RESULTS.csv", index = True, sep = ';')
+del file, final_result, model, prediction, result, test_prediction, X_test, X_train, X_valid, y_test, y_train, y_valid
 
-earlyprediction(X_train, X_valid, y_valid, X_fulltest, y_fulltest, [60,55,50,45,40,35,30,25,20,17,15,12,10,9,8,7,6,5])
+#### Early prediction function
+def earlyprediction(leng):
+    result = {}
+    for i in leng:
+        ### IMPORT DATASET
+        def import_dataset(path):
+            df_train = pd.read_csv(path + 'df{}_train.csv'.format(i), index_col = 0, sep=';')
+            X_train = df_train.drop("purchase" ,axis= 1)
+            y_train = df_train['purchase']
+            del df_train
+
+            df_valid = pd.read_csv(path + 'df{}_valid.csv'.format(i), index_col = 0, sep=';')
+            X_valid = df_valid.drop("purchase" ,axis= 1)
+            y_valid = df_valid['purchase']
+            del df_valid
+
+            df_test = pd.read_csv(path + 'df{}_test.csv'.format(i), index_col = 0, sep=';')
+            X_test = df_test.drop("purchase" ,axis= 1)
+            y_test = df_test['purchase']
+            del df_test
+
+            return X_train, y_train, X_test, y_test, X_valid, y_valid
+
+        path = '' # custom path
+        X_train, y_train, X_fulltest, y_fulltest, X_valid, y_valid = import_dataset(path + '/DATA/')
+
+        #### Computing the contamination level
+        c = round(sum(y_train == 1)/len(y_train),3)
+
+        ##### Contamination in the training dataset was adjusted by contamination of data subset
+        model = OCSVM(kernel = 'rbf', coef0 = 0.5, contamination = c)  
+        model.fit(X_train)
+        
+        ##### Model export
+        file = open(path + "/OCSVM/OCSVM_FINAL_MODEL_LEN_{}.pkl".format(i), "wb")
+        pickle.dump(model, file)
+        file.close()
+        
+        final_result = {}
+        final_result['parameters'] = {str(model)}
+        final_result['threshold'] = model.threshold_
+        final_result['labels'] = model.labels_
+        final_result['descision_scores'] = model.decision_scores_
+        final_result['length'] = i
+        final_result['train_shape'] = X_train.shape
+        
+        ##### Prediction on validation data, prediction on test data, evaluation
+        prediction = model.predict(X_valid)
+        final_result['prediction'] = prediction
+
+        final_result['confusion matrix'] = confusion_matrix(y_valid,prediction)        
+        final_result['precision'] = precision_score(y_valid,prediction)
+        final_result['accuracy'] = accuracy_score(y_valid,prediction)
+        final_result['f1_score'] = f1_score(y_valid,prediction)
+        final_result['roc_auc'] = roc_auc_score(y_valid,prediction)
+        final_result['recall'] = recall_score(y_valid,prediction)
+
+        test_prediction = model.predict(X_test)
+        final_result['test_prediction'] = test_prediction
+
+        final_result['test_confusion matrix'] = confusion_matrix(y_test,test_prediction)        
+        final_result['test_precision'] = precision_score(y_test,test_prediction)
+        final_result['test_accuracy'] = accuracy_score(y_test,test_prediction)
+        final_result['test_f1_score'] = f1_score(y_test,test_prediction)
+        final_result['test_roc_auc'] = roc_auc_score(y_test,test_prediction)
+        final_result['test_recall'] = recall_score(y_test,test_prediction)
+        result['model_with_length_{}'.format(i)] = final_result
+        file = open(path + "/OCSVM/OCSVM_FINAL_RESULT_LEN_{}.pkl".format(i), "wb")
+        pickle.dump(final_result, file)
+        file.close()
+        del X_train, y_train, X_test, y_test, X_valid, y_valid, c, model, prediction, test_prediction, final_result, file
+
+    ### Exporting the results in .csv
+    result = pd.DataFrame.from_dict(result)
+    result.to_csv(path + "/OCSVM/OCSVM_RESULTS_EARLY.csv", index = True, sep = ';')
+
+earlyprediction([5,10,15,20,25,30])
